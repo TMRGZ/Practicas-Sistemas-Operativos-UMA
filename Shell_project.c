@@ -15,21 +15,12 @@ To compile and run the program:
 **/
 
 #include "job_control.h"   // remember to compile with module job_control.c
-#include <string.h>
 
 #define MAX_LINE 256 /* 256 chars per line, per command, should be enough. */
 
 // -----------------------------------------------------------------------
 //                            MAIN          
 // -----------------------------------------------------------------------
-
-int selectComandoInterno(char *cmd) {
-    if (strcmp(cmd[0], "cd") == 0) {
-        chdir(cmd[1]);
-        return 1;
-    }
-    return 0;
-}
 
 
 int main(void) {
@@ -53,11 +44,10 @@ int main(void) {
         pid_fork = fork();
 
         if (pid_fork == 0) {
-            if (!selectComandoInterno(args)) {
-                execvp(inputBuffer, args);
-                printf("Error, command not found: %s \n", args[0]);
-                exit(-1);
-            }
+            execvp(inputBuffer, args);
+            printf("Error, command not found: %s \n", args[0]);
+            exit(-1);
+
         } else {
             if (background) {
                 printf("Background job running... pid: %d, command: %s \n", getpid(), args[0]);
