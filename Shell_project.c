@@ -23,7 +23,7 @@ To compile and run the program:
 //                            MAIN          
 // -----------------------------------------------------------------------
 
-int selectComandoInterno(char *cmd) {
+int selectComandoInterno(char **cmd) {
     if (strcmp(cmd[0], "cd") == 0) {
         chdir(cmd[1]);
         return 1;
