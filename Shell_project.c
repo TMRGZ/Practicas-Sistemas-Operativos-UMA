@@ -55,24 +55,23 @@ int main(void) {
             pid_fork = fork();                  // Nuevo Proceso
 
             if (pid_fork == 0) {                // Proceso Hijo
-                new_process_group(pid_fork);
+                new_process_group(getpid());
+                restore_terminal_signals();
 
-
-                if (!background) {               // Segundo Plano?
-                    restore_terminal_signals();
-                    set_terminal(pid_fork);
-
-                }
+                if (!background)               // Segundo Plano?
+                    set_terminal(getpid());
 
                 execvp(inputBuffer, args);
                 printf("Error, command not found: %s \n", args[0]);
                 exit(-1);
+            } else {// Proceso Padre
+                new_process_group(pid_fork);
 
-            } else {                            // Proceso Padre
                 if (background) {
                     printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
                 } else {
-                    pid_wait = waitpid(pid_fork, &status, 0);
+                    set_terminal(pid_fork);
+                    pid_wait = waitpid(pid_fork, &status, WUNTRACED);
                     set_terminal(getpid());
                     status_res = analyze_status(status, &info);
                     printf("Foreground pid: %d, command: %s, %s, info; %d \n", pid_wait, args[0],
