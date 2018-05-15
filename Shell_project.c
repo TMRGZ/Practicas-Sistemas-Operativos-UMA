@@ -49,17 +49,16 @@ int main(void) {
         ignore_terminal_signals();
         get_command(inputBuffer, MAX_LINE, args, &background);  /* get next command */
 
-        if (args[0] == NULL) continue;          // if empty command
+        if (args[0] == NULL) continue;                          // if empty command
 
-        if (!selectComandoInterno(args)) {       // Comando interno?
-            pid_fork = fork();                  // Nuevo Proceso
+        if (!selectComandoInterno(args)) {                      // Comando interno?
+            pid_fork = fork();                                  // Nuevo Proceso
 
-            if (pid_fork == 0) {                // Proceso Hijo
+            if (pid_fork == 0) {                                // Proceso Hijo
                 new_process_group(getpid());
                 restore_terminal_signals();
 
-                if (!background)               // Segundo Plano?
-                    set_terminal(getpid());
+                if (!background) set_terminal(getpid());        // Segundo Plano?
 
                 execvp(inputBuffer, args);
                 printf("Error, command not found: %s \n", args[0]);
