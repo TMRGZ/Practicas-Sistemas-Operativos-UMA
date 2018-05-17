@@ -27,14 +27,13 @@ job *registroProcesos;
 
 
 void manejador(int senal) {
-    printf("Verificando Cola \n");
-    int pidWait;
-
-
-    for (int i = 0; i < list_size(registroProcesos); ++i) {
-        pidWait = waitpid(get_item_bypos(registroProcesos, i)->pgid, (int *) get_item_bypos(registroProcesos, i)->state,
+    print_job_list(registroProcesos);
+    for (int i = 1; i < list_size(registroProcesos); ++i) {
+        int pidWait = waitpid(get_item_bypos(registroProcesos, i)->pgid,
+                              (int *) get_item_bypos(registroProcesos, i)->state,
                           WNOHANG);
-        delete_job(registroProcesos, get_item_bypos(registroProcesos, i));
+        if (pidWait == get_item_bypos(registroProcesos, i)->pgid)
+            delete_job(registroProcesos, get_item_bypos(registroProcesos, i));
     }
 }
 
@@ -100,7 +99,7 @@ int main(void) {
                     status_res = analyze_status(status, &info);
 
                     if (strcmp(status_strings[status_res], "Suspended") == 0) {
-                        job *suspendido = new_job(getpid(), args[0], BACKGROUND);
+                        job *suspendido = new_job(getpid(), args[0], STOPPED);
                         add_job(registroProcesos, suspendido);
                     }
 
