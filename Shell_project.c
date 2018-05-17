@@ -53,9 +53,9 @@ int main(void) {
 
         if (!selectComandoInterno(args)) {                      // Comando interno?
             pid_fork = fork();                                  // Nuevo Proceso
+            new_process_group(pid_fork);                        // Nuevo Grupo
 
             if (pid_fork == 0) {                                // Proceso Hijo
-                new_process_group(getpid());
                 restore_terminal_signals();
 
                 if (!background) set_terminal(getpid());        // Segundo Plano?
@@ -64,8 +64,6 @@ int main(void) {
                 printf("Error, command not found: %s \n", args[0]);
                 exit(-1);
             } else {// Proceso Padre
-                new_process_group(pid_fork);
-
                 if (background) {
                     printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
                 } else {
