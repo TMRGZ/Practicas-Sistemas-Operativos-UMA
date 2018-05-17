@@ -23,6 +23,21 @@ To compile and run the program:
 //                            MAIN          
 // -----------------------------------------------------------------------
 
+job *registroProcesos;
+
+
+void manejador(int senal) {
+    printf("Verificando Cola \n");
+    int pidWait;
+
+
+    for (int i = 0; i < list_size(registroProcesos); ++i) {
+        pidWait = waitpid(get_item_bypos(registroProcesos, i)->pgid, (int *) get_item_bypos(registroProcesos, i)->state,
+                          WNOHANG);
+        delete_job(registroProcesos, get_item_bypos(registroProcesos, i));
+    }
+}
+
 int selectComandoInterno(char **cmd) {
     if (strcmp(cmd[0], "cd") == 0) {
         chdir(cmd[1]);
@@ -41,6 +56,10 @@ int main(void) {
     int status;                     /* status returned by wait */
     enum status status_res;         /* status processed by analyze_status() */
     int info;                       /* info processed by analyze_status() */
+    registroProcesos = new_list("Procesos");  // Lista Procesos
+
+
+    signal(SIGCHLD, manejador);
 
     while (1)                       /* Program terminates normally inside get_command() after ^D is typed*/
     {
@@ -58,8 +77,13 @@ int main(void) {
                 new_process_group(getpid());
                 restore_terminal_signals();
 
-                if (!background)               // Segundo Plano?
+                if (!background) {  // Segundo Plano?
                     set_terminal(getpid());
+                } else {
+                    job *segundoPlano = new_job(getpid(), args[0], BACKGROUND);
+                    add_job(registroProcesos, segundoPlano);
+                }
+
 
                 execvp(inputBuffer, args);
                 printf("Error, command not found: %s \n", args[0]);
@@ -74,6 +98,13 @@ int main(void) {
                     pid_wait = waitpid(pid_fork, &status, WUNTRACED);
                     set_terminal(getpid());
                     status_res = analyze_status(status, &info);
+
+                    if (strcmp(status_strings[status_res], "Suspended") == 0) {
+                        job *suspendido = new_job(getpid(), args[0], BACKGROUND);
+                        add_job(registroProcesos, suspendido);
+                    }
+
+
                     printf("Foreground pid: %d, command: %s, %s, info; %d \n", pid_wait, args[0],
                            status_strings[status_res], info);
                 }
