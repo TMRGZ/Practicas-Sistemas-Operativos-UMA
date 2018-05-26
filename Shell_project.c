@@ -27,19 +27,42 @@ job *registroProcesos;
 
 
 void manejador(int senal) {
-    print_job_list(registroProcesos);
-    for (int i = 1; i < list_size(registroProcesos); ++i) {
-        int pidWait = waitpid(get_item_bypos(registroProcesos, i)->pgid,
-                              (int *) get_item_bypos(registroProcesos, i)->state,
-                          WNOHANG);
-        if (pidWait == get_item_bypos(registroProcesos, i)->pgid)
-            delete_job(registroProcesos, get_item_bypos(registroProcesos, i));
+    int status = 0;
+    enum status status_res;
+    int pid;
+    int info;
+    pid_t pg;
+    job *t;
+
+    for (int i = 1; i <= list_size(registroProcesos); ++i) {
+        t = get_item_bypos(registroProcesos, i);
+        pg = t->pgid;
+        pid = waitpid(pg, &status, WNOHANG);
+        status_res = analyze_status(status, &info);
+
+        if (pid == pg) {
+            delete_job(registroProcesos, t);
+
+            if (SUSPENDED == status_res) {
+                t->state = STOPPED;
+            } else {
+                delete_job(registroProcesos, t);
+            }
+        }
+
     }
 }
 
 int selectComandoInterno(char **cmd) {
     if (strcmp(cmd[0], "cd") == 0) {
         chdir(cmd[1]);
+        return 1;
+    } else if (strcmp(cmd[0], "jobs") == 0) {
+        if (empty_list(registroProcesos)) {
+            printf("Lista vacia \n");
+        } else {
+            print_job_list(registroProcesos);
+        }
         return 1;
     }
     return 0;
@@ -78,11 +101,7 @@ int main(void) {
 
                 if (!background) {  // Segundo Plano?
                     set_terminal(getpid());
-                } else {
-                    job *segundoPlano = new_job(getpid(), args[0], BACKGROUND);
-                    add_job(registroProcesos, segundoPlano);
                 }
-
 
                 execvp(inputBuffer, args);
                 printf("Error, command not found: %s \n", args[0]);
@@ -92,6 +111,8 @@ int main(void) {
 
                 if (background) {
                     printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
+                    job *segundoPlano = new_job(pid_fork, args[0], BACKGROUND);
+                    add_job(registroProcesos, segundoPlano);
                 } else {
                     set_terminal(pid_fork);
                     pid_wait = waitpid(pid_fork, &status, WUNTRACED);
