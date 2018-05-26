@@ -27,7 +27,7 @@ job *registroProcesos;
 
 
 void manejador(int senal) {
-    int status = 0;
+    int status;
     enum status status_res;
     int pid;
     int info;
@@ -37,19 +37,20 @@ void manejador(int senal) {
     for (int i = 1; i <= list_size(registroProcesos); ++i) {
         t = get_item_bypos(registroProcesos, i);
         pg = t->pgid;
-        pid = waitpid(pg, &status, WNOHANG);
+        pid = waitpid(pg, &status, WUNTRACED | WNOHANG);
         status_res = analyze_status(status, &info);
+        printf("%d, %d", pid, pg);
 
         if (pid == pg) {
-            delete_job(registroProcesos, t);
 
-            if (SUSPENDED == status_res) {
+            printf("%s", status_strings[status_res]);
+
+            if (strcmp(status_strings[status_res], "Suspended") == 0) {
                 t->state = STOPPED;
             } else {
                 delete_job(registroProcesos, t);
             }
         }
-
     }
 }
 
@@ -120,7 +121,7 @@ int main(void) {
                     status_res = analyze_status(status, &info);
 
                     if (strcmp(status_strings[status_res], "Suspended") == 0) {
-                        job *suspendido = new_job(getpid(), args[0], STOPPED);
+                        job *suspendido = new_job(pid_wait, args[0], STOPPED);
                         add_job(registroProcesos, suspendido);
                     }
 
