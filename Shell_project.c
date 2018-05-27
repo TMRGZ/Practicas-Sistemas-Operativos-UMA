@@ -72,6 +72,12 @@ int selectComandoInterno(char **cmd) {
         pid_t pg = t->pgid;
         killpg(pg, SIGCONT);
         set_terminal(pg);
+        int status;
+
+        waitpid(pg, &status, WUNTRACED);
+
+        set_terminal(getpid());
+
 
         return 1;
     } else if (strcmp(cmd[0], "bg") == 0) {
@@ -84,7 +90,6 @@ int selectComandoInterno(char **cmd) {
 
         return 1;
     }
-
 
     return 0;
 }

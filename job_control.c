@@ -12,7 +12,7 @@ Some code adapted from "Fundamentos de Sistemas Operativos", Silberschatz et al.
 #include "job_control.h"
 
 #ifndef __APPLE__
-#include <malloc.h>
+
 #endif
 
 #include <string.h>
