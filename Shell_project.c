@@ -27,23 +27,21 @@ job *registroProcesos;
 
 
 void manejador(int senal) {
-    int status;
-    enum status status_res;
-    int pid;
-    int info;
-    pid_t pg;
-    job *t;
+    int status; // Estado del proceso, no vale para mucho
+    enum status status_res;     // Resultado que dara el analyze_status
+    int pid;                    // pid proceso a manejar
+    int info;                   // Info necesaria
+    pid_t pg;                   //
+    job *t;                     //
 
     for (int i = 1; i <= list_size(registroProcesos); ++i) {
         t = get_item_bypos(registroProcesos, i);
         pg = t->pgid;
         pid = waitpid(pg, &status, WUNTRACED | WNOHANG);
         status_res = analyze_status(status, &info);
-        printf("%d, %d", pid, pg);
 
         if (pid == pg) {
-
-            printf("%s", status_strings[status_res]);
+            //printf("%s \n", status_strings[status_res]);
 
             if (strcmp(status_strings[status_res], "Suspended") == 0) {
                 t->state = STOPPED;
@@ -55,6 +53,8 @@ void manejador(int senal) {
 }
 
 int selectComandoInterno(char **cmd) {
+    int i;
+
     if (strcmp(cmd[0], "cd") == 0) {
         chdir(cmd[1]);
         return 1;
@@ -65,42 +65,62 @@ int selectComandoInterno(char **cmd) {
             print_job_list(registroProcesos);
         }
         return 1;
+    } else if (strcmp(cmd[0], "fg") == 0) {
+        if (cmd[1] == NULL) cmd[1] = "1";
+        sscanf(cmd[1], "%d", &i);
+        job *t = get_item_bypos(registroProcesos, i);
+        pid_t pg = t->pgid;
+        killpg(pg, SIGCONT);
+        set_terminal(pg);
+
+        return 1;
+    } else if (strcmp(cmd[0], "bg") == 0) {
+        if (cmd[1] == NULL) cmd[1] = "1";
+        sscanf(cmd[1], "%d", &i);
+        job *t = get_item_bypos(registroProcesos, i);
+        pid_t pg = t->pgid;
+        t->state = BACKGROUND;
+        killpg(pg, SIGCONT);
+
+        return 1;
     }
+
+
     return 0;
 }
 
 
 int main(void) {
-    char inputBuffer[MAX_LINE];     /* buffer to hold the command entered */
-    int background;                 /* equals 1 if a command is followed by '&' */
-    char *args[MAX_LINE / 2];       /* command line (of 256) has max of 128 arguments */
+    char inputBuffer[MAX_LINE];                 /* buffer to hold the command entered */
+    int background;                             /* equals 1 if a command is followed by '&' */
+    char *args[MAX_LINE / 2];                   /* command line (of 256) has max of 128 arguments */
     // probably useful variables:
-    int pid_fork, pid_wait;         /* pid for created and waited process */
-    int status;                     /* status returned by wait */
-    enum status status_res;         /* status processed by analyze_status() */
-    int info;                       /* info processed by analyze_status() */
-    registroProcesos = new_list("Procesos");  // Lista Procesos
+    int pid_fork, pid_wait;                     /* pid for created and waited process */
+    int status;                                 /* status returned by wait */
+    enum status status_res;                     /* status processed by analyze_status() */
+    int info;                                   /* info processed by analyze_status() */
+    registroProcesos = new_list("Procesos");    // Lista Procesos
 
 
     signal(SIGCHLD, manejador);
 
-    while (1)                       /* Program terminates normally inside get_command() after ^D is typed*/
+    while (1)                                   /* Program terminates normally inside get_command() after ^D is typed*/
     {
         printf("COMMAND->");
         fflush(stdout);
         ignore_terminal_signals();
         get_command(inputBuffer, MAX_LINE, args, &background);  /* get next command */
 
-        if (args[0] == NULL) continue;          // if empty command
+        if (args[0] == NULL) continue;              // if empty command
 
-        if (!selectComandoInterno(args)) {       // Comando interno?
-            pid_fork = fork();                  // Nuevo Proceso
+        if (!selectComandoInterno(args)) {          // Comando interno?
+            pid_fork = fork();                      // Nuevo Proceso
 
-            if (pid_fork == 0) {                // Proceso Hijo
+            if (pid_fork == 0) {                    // Proceso Hijo
                 new_process_group(getpid());
                 restore_terminal_signals();
 
-                if (!background) {  // Segundo Plano?
+                if (!background) {                  // Segundo Plano?
                     set_terminal(getpid());
                 }
 
