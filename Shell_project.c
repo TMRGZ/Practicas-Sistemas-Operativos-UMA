@@ -66,17 +66,29 @@ int selectComandoInterno(char **cmd) {
         }
         return 1;
     } else if (strcmp(cmd[0], "fg") == 0) {
+        int status;
+        int info;
+
         if (cmd[1] == NULL) cmd[1] = "1";
         sscanf(cmd[1], "%d", &i);
         job *t = get_item_bypos(registroProcesos, i);
         pid_t pg = t->pgid;
+        char copiaCMD[20];
+        strcpy(copiaCMD, t->command);
+
         killpg(pg, SIGCONT);
+
         set_terminal(pg);
-        int status;
-
-        waitpid(pg, &status, WUNTRACED);
-
+        int pid_wait = waitpid(pg, &status, WUNTRACED);
+        delete_job(registroProcesos, t);
         set_terminal(getpid());
+
+        enum status status_res = analyze_status(status, &info);
+
+        if (strcmp(status_strings[status_res], "Suspended") == 0) {
+            job *suspendido = new_job(pid_wait, copiaCMD, STOPPED);
+            add_job(registroProcesos, suspendido);
+        }
 
 
         return 1;
