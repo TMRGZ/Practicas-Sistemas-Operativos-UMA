@@ -43,6 +43,7 @@ void manejador(int senal) {
         if (pid == pg) {
             //printf("%s \n", status_strings[status_res]);
 
+
             if (strcmp(status_strings[status_res], "Suspended") == 0) {
                 t->state = STOPPED;
             } else {
@@ -82,9 +83,8 @@ int selectComandoInterno(char **cmd) {
             char copiaCMD[20];
             strcpy(copiaCMD, t->command);
 
-            killpg(pg, SIGCONT);
-
             set_terminal(pg);
+            killpg(pg, SIGCONT);
             int pid_wait = waitpid(pg, &status, WUNTRACED);
             delete_job(registroProcesos, t);
             set_terminal(getpid());
