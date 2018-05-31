@@ -113,6 +113,10 @@ int selectComandoInterno(char **cmd) {
             killpg(pg, SIGCONT);
         }
         return 1;
+    } else if (strcmp(cmd[0], "time-out") == 0) {
+
+
+        return 1;
     }
 
     return 0;
