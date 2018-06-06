@@ -19,11 +19,23 @@ To compile and run the program:
 
 #define MAX_LINE 256 /* 256 chars per line, per command, should be enough. */
 
+/*
+ *
+ *  #!/usr/local/bin/bash
+ *
+ *  gcc Shell_project.c job_control.c -o Shell
+ *  ./Shell
+ *
+ *
+ */
+
+
 // -----------------------------------------------------------------------
 //                            MAIN          
 // -----------------------------------------------------------------------
 
 job *registroProcesos;
+job *listaTimeOut;
 
 
 void manejador(int senal) {
@@ -53,7 +65,66 @@ void manejador(int senal) {
     }
 }
 
-int selectComandoInterno(char **cmd) {
+void manejadorAlarma(int senal) {
+    int status;                 // Estado del proceso, no vale para mucho
+    enum status status_res;     // Resultado que dara el analyze_status
+    int pid;                    // pid proceso a manejar
+    int info;                   // Info necesaria
+    pid_t pg;                   //
+    job *t;
+
+    for (int i = 1; i <= list_size(listaTimeOut); ++i) {
+        t = get_item_bypos(registroProcesos, i);
+        pg = t->pgid;
+        pid = waitpid(pg, &status, WUNTRACED | WNOHANG);
+
+        if (pid == pg) {
+            kill(pid, SIGKILL);
+            delete_job(listaTimeOut, t);
+        }
+    }
+}
+
+void tratarPadre(int background, char *const *args, int pid_fork) {
+    new_process_group(pid_fork);
+    int status;                                 /* status returned by wait */
+    int info;                                   /* info processed by analyze_status() */
+
+    if (background) {
+        printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
+        job *segundoPlano = new_job(pid_fork, args[0], BACKGROUND);
+        add_job(registroProcesos, segundoPlano);
+    } else {
+        set_terminal(pid_fork);
+        int pid_wait = waitpid(pid_fork, &status, WUNTRACED);
+        set_terminal(getpid());
+        enum status status_res = analyze_status(status, &info);
+
+        if (strcmp(status_strings[(status_res)], "Suspended") == 0) {
+            job *suspendido = new_job(pid_wait, args[0], STOPPED);
+            add_job(registroProcesos, suspendido);
+        }
+
+
+        printf("Foreground pid: %d, command: %s, %s, info; %d \n", pid_wait, args[0],
+               status_strings[status_res], info);
+    }
+}
+
+void tratarHijo(const char *inputBuffer, int background, char *const *args) {
+    new_process_group(getpid());
+    restore_terminal_signals();
+
+    if (!background) {                  // Segundo Plano?
+        set_terminal(getpid());
+    }
+
+    execvp(inputBuffer, args);
+    printf("Error, command not found: %s \n", args[0]);
+    exit(-1);
+}
+
+int selectComandoInterno(char **cmd, char *inputBuffer, int background) {
     int i;
 
     if (strcmp(cmd[0], "cd") == 0) {
@@ -114,28 +185,42 @@ int selectComandoInterno(char **cmd) {
         }
         return 1;
     } else if (strcmp(cmd[0], "time-out") == 0) {
+        sscanf(cmd[1], "%d", &i);
+        int largo = 2 + (int) (strlen(cmd[0]) + strlen(cmd[1]));
 
+        int pid = fork();
 
+        if (pid == 0) {
+            alarm((unsigned int) i);
+            tratarHijo(inputBuffer + largo, background, cmd + 2);
+
+        } else {
+            job *timeout = new_job(pid, cmd[2], FOREGROUND);
+            add_job(listaTimeOut, timeout);
+            //print_job_list(listaTimeOut);
+            tratarPadre(background, cmd + 2, pid);
+        }
         return 1;
     }
-
     return 0;
 }
 
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 int main(void) {
     char inputBuffer[MAX_LINE];                 /* buffer to hold the command entered */
     int background;                             /* equals 1 if a command is followed by '&' */
     char *args[MAX_LINE / 2];                   /* command line (of 256) has max of 128 arguments */
-    // probably useful variables:
-    int pid_fork, pid_wait;                     /* pid for created and waited process */
-    int status;                                 /* status returned by wait */
-    enum status status_res;                     /* status processed by analyze_status() */
-    int info;                                   /* info processed by analyze_status() */
+    // probably useful variables
+    int pid_fork;                     /* pid for created and waited process */
     registroProcesos = new_list("Procesos");    // Lista Procesos
+    listaTimeOut = new_list("TimeOut");
 
 
     signal(SIGCHLD, manejador);
+    signal(SIGALRM, manejadorAlarma);
 
     while (1)                                   /* Program terminates normally inside get_command() after ^D is typed*/
     {
@@ -146,43 +231,20 @@ int main(void) {
 
         if (args[0] == NULL) continue;              // if empty command
 
-        if (!selectComandoInterno(args)) {          // Comando interno?
+        if (!selectComandoInterno(args, inputBuffer, background)) {          // Comando interno?
             pid_fork = fork();                      // Nuevo Proceso
 
             if (pid_fork == 0) {                    // Proceso Hijo
-                new_process_group(getpid());
-                restore_terminal_signals();
+                tratarHijo(inputBuffer, background, args);
 
-                if (!background) {                  // Segundo Plano?
-                    set_terminal(getpid());
-                }
-
-                execvp(inputBuffer, args);
-                printf("Error, command not found: %s \n", args[0]);
-                exit(-1);
             } else {// Proceso Padre
-                new_process_group(pid_fork);
-
-                if (background) {
-                    printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
-                    job *segundoPlano = new_job(pid_fork, args[0], BACKGROUND);
-                    add_job(registroProcesos, segundoPlano);
-                } else {
-                    set_terminal(pid_fork);
-                    pid_wait = waitpid(pid_fork, &status, WUNTRACED);
-                    set_terminal(getpid());
-                    status_res = analyze_status(status, &info);
-
-                    if (strcmp(status_strings[status_res], "Suspended") == 0) {
-                        job *suspendido = new_job(pid_wait, args[0], STOPPED);
-                        add_job(registroProcesos, suspendido);
-                    }
-
-
-                    printf("Foreground pid: %d, command: %s, %s, info; %d \n", pid_wait, args[0],
-                           status_strings[status_res], info);
-                }
+                tratarPadre(background, args, pid_fork);
             }
         }
     } // end while
 }
+
+#pragma clang diagnostic pop
+
+
+
