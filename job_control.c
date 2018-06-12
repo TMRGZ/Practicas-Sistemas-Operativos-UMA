@@ -190,6 +190,7 @@ void print_list(job *list, void (*print)(job *)) {
             }
             printTeam(aux, contTeam);
             contTeam = 0;
+            n++;
             continue;
         }
 

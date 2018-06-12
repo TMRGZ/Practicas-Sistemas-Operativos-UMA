@@ -60,11 +60,11 @@ void manejador(int senal) {
             if (strcmp(status_strings[status_res], "Suspended") == 0) {
                 t->state = STOPPED;
                 printf("Quiero aprobar! \n");
+            } else {
+                delete_job(registroProcesos, t);
             }
             if (strcmp(status_strings[status_res], "Signaled") == 0) {
                 cont++;
-            } else {
-                delete_job(registroProcesos, t);
             }
         }
     }
