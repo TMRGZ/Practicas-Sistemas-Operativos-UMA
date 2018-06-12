@@ -94,6 +94,7 @@ job *new_job(pid_t pid, const char *command, enum job_state state) {
     job *aux;
     aux = (job *) malloc(sizeof(job));
     aux->pgid = pid;
+    aux->banFG = 0;
     aux->state = state;
     aux->command = strdup(command);
     aux->next = NULL;
@@ -150,8 +151,12 @@ job *get_item_bypos(job *list, int n) {
 // -----------------------------------------------------------------------
 /*imprime una linea en el terminal con los datos del elemento: pid, nombre ... */
 void print_item(job *item) {
+    printf("pid: %d, command: %s, state: %s \n", item->pgid, item->command, state_strings[item->state]);
+}
 
-    printf("pid: %d, command: %s, state: %s\n", item->pgid, item->command, state_strings[item->state]);
+void printTeam(job *item, int contTeam) {
+    printf("pid: %d, command: %s, state: %s {*<%d>} \n", item->pgid, item->command, state_strings[item->state],
+           contTeam);
 }
 
 // -----------------------------------------------------------------------
@@ -160,12 +165,37 @@ void print_list(job *list, void (*print)(job *)) {
     int n = 1;
     job *aux = list;
     printf("Contents of %s:\n", list->command);
-    while (aux->next != NULL) {
+    int contTeam = 0;
+    int actualTeam;
+
+    /*while (aux->next != NULL) {
         printf(" [%d] ", n);
         print(aux->next);
         n++;
         aux = aux->next;
+    }*/
+
+    while (aux->next != NULL) {
+        printf(" [%d] ", n);
+
+        if (aux->next->banFG == 0) {
+            print(aux->next);
+            n++;
+        } else {
+            actualTeam = aux->next->banFG;
+
+            while (aux->next != NULL && actualTeam == aux->next->banFG) {
+                contTeam++;
+                aux = aux->next;
+            }
+            printTeam(aux, contTeam);
+            contTeam = 0;
+            continue;
+        }
+
+        aux = aux->next;
     }
+
 }
 
 // -----------------------------------------------------------------------

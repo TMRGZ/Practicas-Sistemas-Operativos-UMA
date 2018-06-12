@@ -37,6 +37,7 @@ To compile and run the program:
 job *registroProcesos;
 job *listaTimeOut;
 int cont = 0;
+int idTeam = 1;
 
 
 void manejador(int senal) {
@@ -88,7 +89,7 @@ void manejadorAlarma(int senal) {
     }
 }
 
-void tratarPadre(int background, char *const *args, int pid_fork) {
+void tratarPadre(int background, char *const *args, int pid_fork, int banFG) {
     new_process_group(pid_fork);
     int status;                                 /* status returned by wait */
     int info;                                   /* info processed by analyze_status() */
@@ -96,6 +97,11 @@ void tratarPadre(int background, char *const *args, int pid_fork) {
     if (background) {
         printf("Background job running... pid: %d, command: %s \n", pid_fork, args[0]);
         job *segundoPlano = new_job(pid_fork, args[0], BACKGROUND);
+
+        if (banFG) {
+            segundoPlano->banFG = idTeam;
+        }
+
         add_job(registroProcesos, segundoPlano);
     } else {
         set_terminal(pid_fork);
@@ -149,31 +155,35 @@ int selectComandoInterno(char **cmd, char *inputBuffer, int background) {
 
         if (empty_list(registroProcesos)) {
             printf("No hay procesos suspendidos ni en segundo plano \n");
-        } else if (list_size(registroProcesos) > i) {
+        } else if (list_size(registroProcesos) < i) {
             printf("No existe proceso en la posicion %d de la lista \n", i);
         } else {
             int status;
             int info;
 
             job *t = get_item_bypos(registroProcesos, i);
-            pid_t pg = t->pgid;
-            char copiaCMD[20];
-            strcpy(copiaCMD, t->command);
 
-            set_terminal(pg);
-            killpg(pg, SIGCONT);
-            int pid_wait = waitpid(pg, &status, WUNTRACED);
-            delete_job(registroProcesos, t);
-            set_terminal(getpid());
+            if (t->banFG > 0) {
+                printf("No se puede hacer FG a una tarea creada con team \n");
+            } else {
+                pid_t pg = t->pgid;
+                char copiaCMD[20];
+                strcpy(copiaCMD, t->command);
 
-            enum status status_res = analyze_status(status, &info);
+                set_terminal(pg);
+                killpg(pg, SIGCONT);
+                int pid_wait = waitpid(pg, &status, WUNTRACED);
+                delete_job(registroProcesos, t);
+                set_terminal(getpid());
 
-            if (strcmp(status_strings[status_res], "Suspended") == 0) {
-                job *suspendido = new_job(pid_wait, copiaCMD, STOPPED);
-                add_job(registroProcesos, suspendido);
+                enum status status_res = analyze_status(status, &info);
+
+                if (strcmp(status_strings[status_res], "Suspended") == 0) {
+                    job *suspendido = new_job(pid_wait, copiaCMD, STOPPED);
+                    add_job(registroProcesos, suspendido);
+                }
             }
         }
-
         return 1;
     } else if (strcmp(cmd[0], "bg") == 0) {
         if (cmd[1] == NULL) cmd[1] = "1";
@@ -181,7 +191,7 @@ int selectComandoInterno(char **cmd, char *inputBuffer, int background) {
 
         if (empty_list(registroProcesos)) {
             printf("No hay procesos suspendidos \n");
-        } else if (list_size(registroProcesos) > i) {
+        } else if (list_size(registroProcesos) < i) {
             printf("No existe proceso en la posicion %d de la lista \n", i);
         } else {
             job *t = get_item_bypos(registroProcesos, i);
@@ -203,11 +213,30 @@ int selectComandoInterno(char **cmd, char *inputBuffer, int background) {
         } else {
             job *timeout = new_job(pid, cmd[2], FOREGROUND);
             add_job(listaTimeOut, timeout);
-            tratarPadre(background, cmd + 2, pid);
+            tratarPadre(background, cmd + 2, pid, 0);
         }
         return 1;
     } else if (strcmp(cmd[0], "sig") == 0) {
         printf("El numero de tareas que han terminado por recibir una senal es de %d \n", cont);
+        return 1;
+    } else if (strcmp(cmd[0], "team") == 0) {
+        sscanf(cmd[1], "%d", &i);
+        int largo = 2 + (int) (strlen(cmd[0]) + strlen(cmd[1]));
+        int pidPadre = getpid();
+        background = 1;
+
+        for (int j = 0; j < i; ++j) {
+            if (pidPadre == getpid()) {
+                int pidCadena = fork();
+
+                if (pidCadena == 0) {
+                    tratarHijo(inputBuffer + largo, background, cmd + 2);
+                } else {
+                    tratarPadre(background, cmd + 2, pidCadena, 1);
+                }
+            }
+        }
+        idTeam++;
         return 1;
     }
     return 0;
@@ -246,7 +275,7 @@ int main(void) {
                 tratarHijo(inputBuffer, background, args);
 
             } else {// Proceso Padre
-                tratarPadre(background, args, pid_fork);
+                tratarPadre(background, args, pid_fork, 0);
             }
         }
     } // end while

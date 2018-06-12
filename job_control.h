@@ -33,6 +33,7 @@ static char *state_strings[] = {"Foreground", "Background", "Stopped"};
 // ----------- JOB TYPE FOR JOB LIST ------------------------------------
 typedef struct job_ {
     pid_t pgid; /* group id = process lider id */
+    int banFG; // Banear fg
     char *command; /* program name */
     enum job_state state;
     struct job_ *next; /* next job in the list */
