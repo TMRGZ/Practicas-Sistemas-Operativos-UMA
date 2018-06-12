@@ -36,9 +36,12 @@ To compile and run the program:
 
 job *registroProcesos;
 job *listaTimeOut;
+int cont = 0;
 
 
 void manejador(int senal) {
+    printf("Ouch!\n");
+
     int status;                 // Estado del proceso, no vale para mucho
     enum status status_res;     // Resultado que dara el analyze_status
     int pid;                    // pid proceso a manejar
@@ -53,11 +56,12 @@ void manejador(int senal) {
         status_res = analyze_status(status, &info);
 
         if (pid == pg) {
-            //printf("%s \n", status_strings[status_res]);
-
-
             if (strcmp(status_strings[status_res], "Suspended") == 0) {
                 t->state = STOPPED;
+                printf("Quiero aprobar! \n");
+            }
+            if (strcmp(status_strings[status_res], "Signaled") == 0) {
+                cont++;
             } else {
                 delete_job(registroProcesos, t);
             }
@@ -67,9 +71,7 @@ void manejador(int senal) {
 
 void manejadorAlarma(int senal) {
     int status;                 // Estado del proceso, no vale para mucho
-    enum status status_res;     // Resultado que dara el analyze_status
     int pid;                    // pid proceso a manejar
-    int info;                   // Info necesaria
     pid_t pg;                   //
     job *t;
 
@@ -80,6 +82,7 @@ void manejadorAlarma(int senal) {
 
         if (pid == pg) {
             kill(pid, SIGKILL);
+            printf("Time-out a %d comando: %s", pid, t->command);
             delete_job(listaTimeOut, t);
         }
     }
@@ -104,7 +107,10 @@ void tratarPadre(int background, char *const *args, int pid_fork) {
             job *suspendido = new_job(pid_wait, args[0], STOPPED);
             add_job(registroProcesos, suspendido);
         }
-
+        if (strcmp(status_strings[(status_res)], "Signaled") == 0) {
+            //printf("Prueba 1");
+            cont++;
+        }
 
         printf("Foreground pid: %d, command: %s, %s, info; %d \n", pid_wait, args[0],
                status_strings[status_res], info);
@@ -197,9 +203,11 @@ int selectComandoInterno(char **cmd, char *inputBuffer, int background) {
         } else {
             job *timeout = new_job(pid, cmd[2], FOREGROUND);
             add_job(listaTimeOut, timeout);
-            //print_job_list(listaTimeOut);
             tratarPadre(background, cmd + 2, pid);
         }
+        return 1;
+    } else if (strcmp(cmd[0], "sig") == 0) {
+        printf("El numero de tareas que han terminado por recibir una senal es de %d \n", cont);
         return 1;
     }
     return 0;
